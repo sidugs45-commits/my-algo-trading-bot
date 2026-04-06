@@ -1,4 +1,4 @@
-neo-api-client
+git+https://github.com/Kotak-Neo/kotak-neo-api-v2.git
 pyotp
 pandas
 ta
