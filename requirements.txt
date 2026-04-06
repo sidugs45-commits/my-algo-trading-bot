@@ -1,4 +1,5 @@
-git+https://github.com/Kotak-Neo/kotak-neo-api-v2.git
+git+https://github.com/Kotak-Neo/kotak-neo-api
 pyotp
 pandas
 ta
+flask
