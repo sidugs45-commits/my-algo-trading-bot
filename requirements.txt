@@ -1,7 +1,7 @@
 setuptools
 wheel
+flask
 git+https://github.com/Kotak-Neo/kotak-neo-api
 pyotp
 pandas
 ta
-flask
