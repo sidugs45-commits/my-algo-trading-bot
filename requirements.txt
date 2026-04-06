@@ -1,3 +1,5 @@
+setuptools
+wheel
 git+https://github.com/Kotak-Neo/kotak-neo-api
 pyotp
 pandas
