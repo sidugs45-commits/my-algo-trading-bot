@@ -1,0 +1,4 @@
+neo-api-client
+pyotp
+pandas
+ta
