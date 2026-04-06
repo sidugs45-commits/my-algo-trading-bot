@@ -3,6 +3,8 @@ import pyotp
 import time
 import datetime
 import os
+import threading
+from flask import Flask
 
 # 🔐 ENV VARIABLES
 CONSUMER_KEY = os.getenv("CONSUMER_KEY")
@@ -20,7 +22,7 @@ client.totp_validate(mpin=MPIN)
 
 print("✅ Login Successful")
 
-# 📊 WATCHLIST (TOKEN UPDATE KARNA)
+# 📊 WATCHLIST
 watchlist = [
     {"name": "NIFTY", "token": "26000", "segment": "nse_cm"},
     {"name": "BANKNIFTY", "token": "26009", "segment": "nse_cm"},
@@ -32,90 +34,103 @@ active_trade = None
 entry_price = 0
 active_market = None
 
-while True:
-    try:
-        now = datetime.datetime.now()
+# =========================
+# 🧠 TRADING LOOP FUNCTION
+# =========================
 
-        if now.hour < 9 or now.hour > 23:
-            print("⛔ Market Closed")
-            time.sleep(60)
-            continue
+def start_trading():
+    global active_trade, entry_price, active_market
 
-        for item in watchlist:
-            name = item["name"]
-            token = item["token"]
-            segment = item["segment"]
+    print("🚀 Bot Started...")
 
-            if token == "":
+    while True:
+        try:
+            now = datetime.datetime.now()
+
+            if now.hour < 9 or now.hour > 23:
+                print("⛔ Market Closed")
+                time.sleep(60)
                 continue
 
-            data = client.quotes(
-                instrument_tokens=[{
-                    "instrument_token": token,
-                    "exchange_segment": segment
-                }],
-                quote_type="ltp"
-            )
+            for item in watchlist:
+                name = item["name"]
+                token = item["token"]
+                segment = item["segment"]
 
-            if 'data' not in data or len(data['data']) == 0:
-                continue
+                if token == "":
+                    continue
 
-            ltp_val = data['data'][0].get('last_traded_price')
-            if ltp_val is None:
-                continue
+                data = client.quotes(
+                    instrument_tokens=[{
+                        "instrument_token": token,
+                        "exchange_segment": segment
+                    }],
+                    quote_type="ltp"
+                )
 
-            ltp = float(ltp_val)
-            print(f"{name} → {ltp}")
+                if 'data' not in data or len(data['data']) == 0:
+                    continue
 
-            if name not in prices:
-                prices[name] = []
+                ltp_val = data['data'][0].get('last_traded_price')
+                if ltp_val is None:
+                    continue
 
-            prices[name].append(ltp)
+                ltp = float(ltp_val)
+                print(f"{name} → {ltp}")
 
-            # 🔥 ENTRY
-            if active_trade is None and len(prices[name]) > 3:
+                if name not in prices:
+                    prices[name] = []
 
-                if prices[name][-1] > prices[name][-2] > prices[name][-3]:
-                    print(f"🚀 BUY {name}")
-                    place_trade(segment, name, ltp, "B")
-                    active_trade = "BUY"
-                    entry_price = ltp
-                    active_market = name
+                prices[name].append(ltp)
 
-                elif prices[name][-1] < prices[name][-2] < prices[name][-3]:
-                    print(f"🔻 SELL {name}")
-                    place_trade(segment, name, ltp, "S")
-                    active_trade = "SELL"
-                    entry_price = ltp
-                    active_market = name
+                # 🔥 ENTRY
+                if active_trade is None and len(prices[name]) > 3:
 
-            # 💰 EXIT
-            if active_market == name:
+                    if prices[name][-1] > prices[name][-2] > prices[name][-3]:
+                        print(f"🚀 BUY {name}")
+                        place_trade(segment, name, ltp, "B")
+                        active_trade = "BUY"
+                        entry_price = ltp
+                        active_market = name
 
-                if active_trade == "BUY":
-                    if ltp >= entry_price + 1:
-                        print(f"💰 PROFIT {name}")
-                        reset_trade()
+                    elif prices[name][-1] < prices[name][-2] < prices[name][-3]:
+                        print(f"🔻 SELL {name}")
+                        place_trade(segment, name, ltp, "S")
+                        active_trade = "SELL"
+                        entry_price = ltp
+                        active_market = name
 
-                    elif ltp <= entry_price - 1:
-                        print(f"❌ LOSS {name}")
-                        reset_trade()
+                # 💰 EXIT
+                if active_market == name:
 
-                elif active_trade == "SELL":
-                    if ltp <= entry_price - 1:
-                        print(f"💰 PROFIT {name}")
-                        reset_trade()
+                    if active_trade == "BUY":
+                        if ltp >= entry_price + 1:
+                            print(f"💰 PROFIT {name}")
+                            reset_trade()
 
-                    elif ltp >= entry_price + 1:
-                        print(f"❌ LOSS {name}")
-                        reset_trade()
+                        elif ltp <= entry_price - 1:
+                            print(f"❌ LOSS {name}")
+                            reset_trade()
 
-        time.sleep(2)
+                    elif active_trade == "SELL":
+                        if ltp <= entry_price - 1:
+                            print(f"💰 PROFIT {name}")
+                            reset_trade()
 
-    except Exception as e:
-        print("❌ Error:", e)
-        time.sleep(5)
+                        elif ltp >= entry_price + 1:
+                            print(f"❌ LOSS {name}")
+                            reset_trade()
 
+            time.sleep(2)
+
+        except Exception as e:
+            print("❌ Error:", e)
+            time.sleep(5)
+
+
+# =========================
+# 📦 ORDER FUNCTION
+# =========================
 
 def place_trade(segment, symbol, price, side):
     try:
@@ -134,6 +149,7 @@ def place_trade(segment, symbol, price, side):
             pf="N",
             trigger_price="0"
         )
+        print(f"✅ Order Placed: {symbol} {side}")
     except Exception as e:
         print("Order Error:", e)
 
@@ -143,3 +159,27 @@ def reset_trade():
     active_trade = None
     entry_price = 0
     active_market = None
+
+
+# =========================
+# 🌐 FLASK SERVER (IMPORTANT)
+# =========================
+
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Algo Bot Running 🚀"
+
+
+# =========================
+# ▶️ START
+# =========================
+
+def run_bot():
+    start_trading()
+
+
+if __name__ == "__main__":
+    threading.Thread(target=run_bot).start()
+    app.run(host='0.0.0.0', port=10000)
