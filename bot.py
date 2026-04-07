@@ -22,6 +22,7 @@ TOTP_SECRET = os.getenv("TOTP_SECRET")
 
 # 🔁 BOT FUNCTION
 def run_bot():
+    print("🚀 BOT STARTED")
     try:
         client = NeoAPI(environment="prod", consumer_key=CONSUMER_KEY)
 
